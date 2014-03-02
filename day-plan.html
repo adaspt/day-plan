@@ -1,0 +1,165 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Day plan</title>
+
+	<link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+
+	<script id="tasks-template" type="text/html">
+		<fieldset>
+			<legend>Tasks</legend>
+			<p>
+				<button type="button" class="btn btn-default" data-bind="click: start, enable: selectedTask">Start</button>
+				<button type="button" class="btn btn-default" data-bind="click: complete, enable: selectedTask">Complete</button>
+				<button type="button" class="btn btn-default" data-bind="click: remove, enable: selectedTask">Delete</button>
+			</p>
+			<div class="list-group" data-bind="foreach: incompleteTasks">
+				<a href="#" class="list-group-item" data-bind="text: title, click: select, css: { 'active': isSelected, 'list-group-item-info': isStarted }"></a>
+			</div>
+			<form role="form" data-bind="submit: addTask">
+				<div class="form-group">
+					<textarea class="form-control" rows="2" placeholder="Add new task (Alt+A)" data-bind="value: newTask, valueUpdate: 'input', hasFocus: newTaskHasFocus" accesskey="A"></textarea>
+				</div>
+				<p data-bind="visible: newTask">
+					<button type="submit" class="btn btn-primary" accesskey="S">Save (Alt+S)</button>
+					<button type="reset" class="btn btn-default">Cancel</button>
+				</p>
+			</form>
+		</fieldset>
+		<fieldset>
+			<legend>Completed</legend>
+			<p>
+				<button type="button" class="btn btn-default" data-bind="click: clearCompleted, enable: completeTasks().length">Clear</button>
+			</p>
+			<div class="list-group" data-bind="foreach: completeTasks">
+				<a href="#" class="list-group-item" data-bind="text: title, click: $parent.select, css: { 'active': isSelected }"></a>
+			</div>
+		</fieldset>
+	</script>
+</head>
+<body>
+	<div class="container-fluid">
+		<h1>Day plan</h1>
+
+		<div class="row">
+			<div class="col-md-4">
+				<div data-bind="template: { name: 'tasks-template', data: tasks }"></div>
+			</div>
+		</div>
+	</div>
+
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+	<script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+	<script src="http://ajax.aspnetcdn.com/ajax/knockout/knockout-3.0.0.js"></script>
+	<script type="text/javascript">
+		(function (window, document, $, ko) {
+			function ViewModel() {
+				var self = this;
+				self.tasks = new TaskListViewModel();
+
+				self.tasks.load();
+			}
+
+			function Task(data) {
+				var self = this;
+				self.isSelected = ko.observable(false);
+				self.isStarted = ko.observable(data.isStarted);
+				self.isCompleted = ko.observable(data.isCompleted);
+				self.title = ko.observable(data.title);
+
+				self.select = function () {
+					self.isSelected(!self.isSelected());
+				};
+
+				self.start = function () {
+					self.isStarted(!self.isStarted());
+					self.isSelected(false);
+				};
+
+				self.complete = function () {
+					self.isSelected(false);
+					self.isStarted(false);
+					self.isCompleted(true);
+				};
+			}
+
+			function TaskListViewModel() {
+				var self = this;
+
+				self.tasks = ko.observableArray();
+				self.incompleteTasks = ko.computed(function () {
+					return ko.utils.arrayFilter(self.tasks(), function (task) { return !task.isCompleted(); });
+				});
+				self.completeTasks = ko.computed(function () {
+					return ko.utils.arrayFilter(self.tasks(), function (task) { return task.isCompleted(); });
+				});
+				self.selectedTasks = ko.computed(function () {
+					return ko.utils.arrayFilter(self.incompleteTasks(), function (task) { return task.isSelected(); });
+				});
+
+				self.selectedTask = ko.computed(function () {
+					return ko.utils.arrayFirst(self.incompleteTasks(), function (task) { return task.isSelected(); });
+				});
+
+				self.newTask = ko.observable();
+				self.newTaskHasFocus = ko.observable(false);
+
+				self.addTask = function () {
+					self.tasks.push(new Task({ title: self.newTask(), isStarted: false, isCompleted: false }));
+
+					self.newTask('');
+					self.newTaskHasFocus(true);
+					save();
+				};
+
+				self.start = function () {
+					ko.utils.arrayForEach(self.selectedTasks(), function (task) {
+						task.start();
+					});
+					save();
+				};
+
+				self.complete = function () {
+					ko.utils.arrayForEach(self.selectedTasks(), function (task) {
+						task.complete();
+					});
+					save();
+				};
+
+				self.remove = function () {
+					self.tasks.removeAll(self.selectedTasks());
+					save();
+				};
+
+				self.clearCompleted = function () {
+					ko.utils.arrayForEach(self.completeTasks(), function (task) { self.tasks.remove(task); });
+					save();
+				};
+
+				self.load = function () {
+					var serializedData = window.localStorage.getItem('day-plan.tasks');
+					if (serializedData) {
+						var data = JSON.parse(serializedData);
+						self.tasks(ko.utils.arrayMap(data, function (item) { return new Task(item); }));
+					}
+				};
+
+				var save = function () {
+					var data = ko.toJSON(self.tasks());
+					window.localStorage.setItem('day-plan.tasks', data);
+				};
+
+				ko.computed(function () {
+					var incompleteCount = self.incompleteTasks().length;
+					document.title = 'Day plan' + (incompleteCount > 0 ? (' (' + incompleteCount + ')') : '');
+				});
+			}
+
+			$(function () { ko.applyBindings(new ViewModel()); });
+		})(window, document, jQuery, ko);
+	</script>
+</body>
+</html>
